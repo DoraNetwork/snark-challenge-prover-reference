@@ -49,6 +49,7 @@ public:
     size_t num_bits() const; /// Returns the number of bits in this specific bigint value, i.e., position of the most-significant 1
 
     unsigned long as_ulong() const; /// Return the last limb of the integer
+    void as_bytes(uint8_t *val) const;
     void to_mpz(mpz_t r) const;
     bool test_bit(const std::size_t bitno) const;
 

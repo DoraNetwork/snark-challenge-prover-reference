@@ -67,6 +67,7 @@ void mnt6753_G1::print_coordinates() const
 
 void mnt6753_G1::to_affine_coordinates()
 {
+    //printf("to_affine_coordinates\n");
     if (this->is_zero())
     {
         this->X_ = mnt6753_Fq::zero();
@@ -76,8 +77,17 @@ void mnt6753_G1::to_affine_coordinates()
     else
     {
         const mnt6753_Fq Z_inv = Z_.inverse();
+#if 0
+        printf("Z inv\n");
+        Z_inv.mont_repr.print_hex();
+#endif
         this->X_ = this->X_ * Z_inv;
         this->Y_ = this->Y_ * Z_inv;
+#if 0
+        printf("Calc X, Y:\n");
+        this->X_.mont_repr.print_hex();
+        this->Y_.mont_repr.print_hex();
+#endif
         this->Z_ = mnt6753_Fq::one();
     }
 }

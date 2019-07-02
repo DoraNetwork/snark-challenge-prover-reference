@@ -33,6 +33,8 @@ public:
 
     template< template <typename> class Func, typename... Args >
     static void map(Args... args);
+    template< template <typename> class Func, typename... Args >
+    static void map2(int n, int block_size, Args... args);
 
 private:
     fixnum *ptr;

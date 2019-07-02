@@ -46,9 +46,9 @@ public:
     mnt4753_G1(const mnt4753_Fq& X, const mnt4753_Fq& Y) : X_(X), Y_(Y), Z_(base_field::one()) {}
     mnt4753_G1(const mnt4753_Fq& X, const mnt4753_Fq& Y, const mnt4753_Fq& Z) : X_(X), Y_(Y), Z_(Z) {}
 
-    mnt4753_Fq X() const { return X_; }
-    mnt4753_Fq Y() const { return Y_; }
-    mnt4753_Fq Z() const { return Z_; }
+    const mnt4753_Fq& X() const { return X_; }
+    const mnt4753_Fq& Y() const { return Y_; }
+    const mnt4753_Fq& Z() const { return Z_; }
 
     void print() const;
     void print_coordinates() const;

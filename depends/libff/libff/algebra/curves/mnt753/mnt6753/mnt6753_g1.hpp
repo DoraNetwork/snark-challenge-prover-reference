@@ -46,9 +46,9 @@ public:
     mnt6753_G1(const mnt6753_Fq& X, const mnt6753_Fq& Y) : X_(X), Y_(Y), Z_(base_field::one()) {}
     mnt6753_G1(const mnt6753_Fq& X, const mnt6753_Fq& Y, const mnt6753_Fq& Z) : X_(X), Y_(Y), Z_(Z) {}
 
-    mnt6753_Fq X() const { return X_; }
-    mnt6753_Fq Y() const { return Y_; }
-    mnt6753_Fq Z() const { return Z_; }
+    const mnt6753_Fq& X() const { return X_; }
+    const mnt6753_Fq& Y() const { return Y_; }
+    const mnt6753_Fq& Z() const { return Z_; }
 
     void print() const;
     void print_coordinates() const;

@@ -734,6 +734,7 @@ r1cs_gg_ppzksnark_proof<ppT>* camlsnark_bn128_proof_of_string(std::string* s) {
   return p;
 }
 
+#if 0
 r1cs_gg_ppzksnark_proof<ppT>* camlsnark_bn128_proof_create(
     r1cs_gg_ppzksnark_proving_key<ppT>* key,
     std::vector<FieldT>* primary_input,
@@ -741,6 +742,7 @@ r1cs_gg_ppzksnark_proof<ppT>* camlsnark_bn128_proof_create(
   auto res = r1cs_gg_ppzksnark_prover(*key, *primary_input, *auxiliary_input);
   return new r1cs_gg_ppzksnark_proof<ppT>(res);
 }
+#endif
 
 void camlsnark_bn128_proof_delete(r1cs_gg_ppzksnark_proof<ppT>* proof) {
   delete proof;
@@ -1026,6 +1028,7 @@ r1cs_bg_ppzksnark_proof<ppT>* camlsnark_bn128_bg_proof_of_string(std::string* s)
   return p;
 }
 
+#if 0
 r1cs_bg_ppzksnark_proof<ppT>* camlsnark_bn128_bg_proof_create(
     r1cs_bg_ppzksnark_proving_key<ppT>* key,
     FieldT* d,
@@ -1034,6 +1037,7 @@ r1cs_bg_ppzksnark_proof<ppT>* camlsnark_bn128_bg_proof_create(
   auto res = r1cs_bg_ppzksnark_prover(*key, *d, *primary_input, *auxiliary_input);
   return new r1cs_bg_ppzksnark_proof<ppT>(res);
 }
+#endif
 
 bool camlsnark_bn128_bg_proof_verify_components(
     libff::G1<ppT>* a,

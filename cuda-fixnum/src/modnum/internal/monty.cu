@@ -71,6 +71,8 @@ __device__
 monty<fixnum>::monty(fixnum modulus)
 : mod(modulus), modrem(modulus)
 {
+    is_valid = 1;
+#if 0
     // mod must be odd > 1 in order to calculate R^-1 mod "mod".
     // FIXME: Handle these errors properly
     if (fixnum::two_valuation(modulus) != 0 //fixnum::get(modulus, 0) & 1 == 0
@@ -87,6 +89,7 @@ monty<fixnum>::monty(fixnum modulus)
     fixnum::sqr_wide(Rsqr_hi, Rsqr_lo, R_mod);
     // Rsqr_mod = R^2 % mod
     modrem(Rsqr_mod, Rsqr_hi, Rsqr_lo);
+#endif
 }
 
 /*

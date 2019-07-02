@@ -135,6 +135,21 @@ unsigned long bigint<n>::as_ulong() const
 }
 
 template<mp_size_t n>
+void bigint<n>::as_bytes(uint8_t *val) const
+{
+    for (int i = 0; i < n; i ++) {
+        val[i*8] = this->data[i];
+        val[i*8+1] = this->data[i]>>8;
+        val[i*8+2] = this->data[i]>>16;
+        val[i*8+3] = this->data[i]>>24;
+        val[i*8+4] = this->data[i]>>32;
+        val[i*8+5] = this->data[i]>>40;
+        val[i*8+6] = this->data[i]>>48;
+        val[i*8+7] = this->data[i]>>56;
+    }
+}
+
+template<mp_size_t n>
 void bigint<n>::to_mpz(mpz_t r) const
 {
     mpz_set_ui(r, 0);

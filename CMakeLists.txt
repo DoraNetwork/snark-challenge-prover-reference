@@ -1,6 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
-
-enable_language(CUDA)
+cmake_minimum_required(VERSION 2.8)
 
 project (libsnark)
 
@@ -120,7 +118,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   if("${OPT_FLAGS}" STREQUAL "")
     set(
       OPT_FLAGS
-      "-ggdb3 -O2 -march=westmere -mtune=skylake-avx512"
+      "-ggdb3 -O2 -march=westmere "
     )
   endif()
 endif()
@@ -251,14 +249,10 @@ endif(CCACHE_FOUND)
 # Add a `make check` target that builds and tests
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND})
 
+#add_subdirectory(cuda-fixnum)
+#LINK_DIRECTORIES(cuda-fixnum)
+add_library(cuda-fixnum SHARED IMPORTED)
+set_target_properties(cuda-fixnum PROPERTIES IMPORTED_LOCATION ${PROJECT_SOURCE_DIR}/cuda-fixnum/libcuda-fixnum.so)
+
 add_subdirectory(depends)
 add_subdirectory(libsnark)
-add_subdirectory(cuda-fixnum)
-
-add_executable (
-    cuda_prover_piecewise
-    EXCLUDE_FROM_ALL
-
-    cuda_prover_piecewise.cu
-)
-target_link_libraries(cuda_prover_piecewise cuda_main prover_reference_functions)

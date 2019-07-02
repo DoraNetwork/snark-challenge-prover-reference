@@ -1,7 +1,4 @@
-# Build directory
-build
-
-# # Test input
+# Test input
 tests/add_*
 tests/sub_*
 tests/mul_*
@@ -41,3 +38,9 @@ tests/paillier_*
 # Debug files
 *.dSYM/
 *.class
+
+# Make files
+Makefile
+cmake_install.cmake
+CMakeCache.txt
+CMakeFiles

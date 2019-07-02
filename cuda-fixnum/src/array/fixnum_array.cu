@@ -5,8 +5,6 @@
 #include <string>
 // for min
 #include <algorithm>
-// for assert
-#include <cassert>
 
 #include "util/cuda_wrap.h"
 #include "fixnum_array.h"
@@ -157,7 +155,7 @@ fixnum_array<fixnum>::set(int idx, const byte *data, size_t nbytes) {
         return -1;
 
     int off = idx * fixnum::BYTES;
-    const byte *q = as_byte_ptr(ptr);
+    byte *q = as_byte_ptr(ptr);
     return fixnum::from_bytes(q + off, data, nbytes);
 }
 
@@ -240,15 +238,16 @@ operator<<(std::ostream &os, const fixnum_array<fixnum> *fn_arr) {
     return os;
 }
 
-
 template< template <typename> class Func, typename fixnum, typename... Args >
 __global__ void
-dispatch(int nelts, Args... args) {
+dispatch2(int nelts, Args... args) {
     // Get the slot index for the current thread.
     int blk_tid_offset = blockDim.x * blockIdx.x;
     int tid_in_blk = threadIdx.x;
-    int idx = (blk_tid_offset + tid_in_blk) / fixnum::SLOT_WIDTH;
+    int idx = (blk_tid_offset + tid_in_blk) / WARPSIZE; //fixnum::SLOT_WIDTH;
 
+    //printf("width %d slot width %d WARPSIZE %d\n", fixnum::layout::WIDTH, fixnum::SLOT_WIDTH, WARPSIZE);
+    //printf("blk_tid_offset %d tid_in_blk %d idx %d nelts %d\n", blk_tid_offset, tid_in_blk, idx, nelts);
     if (idx < nelts) {
         // TODO: Find a way to load each argument into a register before passing
         // it to fn, and then unpack the return values where they belong. This
@@ -261,7 +260,76 @@ dispatch(int nelts, Args... args) {
         int off = idx * fixnum::layout::WIDTH + fixnum::layout::laneIdx();
         // TODO: This is hiding a sin against memory aliasing / management /
         // type-safety.
-        fn(args[off]...);
+        if (fixnum::layout::laneIdx() < fixnum::SLOT_WIDTH) {
+            //printf("off %d blk_tid_offset %d tid_in_blk %d idx %d nelts %d laneIdx %d\n", off, blk_tid_offset, tid_in_blk, idx, nelts, fixnum::layout::laneIdx());
+            fn(args...);
+        }
+    }
+}
+
+template< typename fixnum >
+template< template <typename> class Func, typename... Args >
+void
+fixnum_array<fixnum>::map2(int nelts, int block_size, Args... args) {
+    // FIXME: WARPSIZE should come from slot_layout
+    int WARPSIZE = 32;
+#if 0
+    // BLOCK_SIZE must be a multiple of warpSize
+    static_assert(!(block_size % WARPSIZE),
+            "block size must be a multiple of warpSize");
+#endif
+
+    int fixnums_per_block = block_size / WARPSIZE;//fixnum::SLOT_WIDTH;
+
+    // FIXME: nblocks could be too big for a single kernel call to handle
+    int nblocks = ceilquo(nelts, fixnums_per_block);
+    //printf("nelts %d fixnums_per_block %d nblocks %d SLOT_WIDTH %d\n", nelts, fixnums_per_block, nblocks,fixnum::SLOT_WIDTH);
+
+    // nblocks > 0 iff nelts > 0
+    if (nblocks > 0) {
+        cudaStream_t stream;
+        cuda_check(cudaStreamCreate(&stream), "create stream");
+//         cuda_stream_attach_mem(stream, src->ptr);
+//         cuda_stream_attach_mem(stream, ptr);
+        cuda_check(cudaStreamSynchronize(stream), "stream sync");
+
+        dispatch2<Func, fixnum ><<< nblocks, block_size, 0, stream >>>(nelts, args...);
+
+        cuda_check(cudaPeekAtLastError(), "kernel invocation/run");
+        cuda_check(cudaStreamSynchronize(stream), "stream sync");
+        cuda_check(cudaStreamDestroy(stream), "stream destroy");
+
+        // FIXME: Only synchronize when retrieving data from array
+        cuda_device_synchronize();
+    }
+}
+
+template< template <typename> class Func, typename fixnum, typename... Args >
+__global__ void
+dispatch(int nelts, Args... args) {
+    // Get the slot index for the current thread.
+    int blk_tid_offset = blockDim.x * blockIdx.x;
+    int tid_in_blk = threadIdx.x;
+    int idx = (blk_tid_offset + tid_in_blk) / WARPSIZE; //fixnum::SLOT_WIDTH;
+
+    //printf("width %d slot width %d WARPSIZE %d\n", fixnum::layout::WIDTH, fixnum::SLOT_WIDTH, WARPSIZE);
+    //printf("blk_tid_offset %d tid_in_blk %d idx %d nelts %d\n", blk_tid_offset, tid_in_blk, idx, nelts);
+    if (idx < nelts) {
+        // TODO: Find a way to load each argument into a register before passing
+        // it to fn, and then unpack the return values where they belong. This
+        // will guarantee that all operations happen on registers, rather than
+        // inadvertently operating on memory.
+
+        Func<fixnum> fn;
+        // TODO: This offset calculation is entwined with fixnum layout and so
+        // belongs somewhere else.
+        int off = idx * fixnum::layout::WIDTH + fixnum::layout::laneIdx();
+        // TODO: This is hiding a sin against memory aliasing / management /
+        // type-safety.
+        if (fixnum::layout::laneIdx() < fixnum::SLOT_WIDTH) {
+            //printf("off %d blk_tid_offset %d tid_in_blk %d idx %d nelts %d laneIdx %d\n", off, blk_tid_offset, tid_in_blk, idx, nelts, fixnum::layout::laneIdx());
+            fn(args[off]...);
+        }
     }
 }
 
@@ -270,7 +338,7 @@ template< template <typename> class Func, typename... Args >
 void
 fixnum_array<fixnum>::map(Args... args) {
     // TODO: Set this to the number of threads on a single SM on the host GPU.
-    constexpr int BLOCK_SIZE = 192;
+    constexpr int BLOCK_SIZE = 128;
 
     // FIXME: WARPSIZE should come from slot_layout
     constexpr int WARPSIZE = 32;
@@ -280,10 +348,11 @@ fixnum_array<fixnum>::map(Args... args) {
 
     int nelts = std::min( { args->length()... } );
 
-    constexpr int fixnums_per_block = BLOCK_SIZE / fixnum::SLOT_WIDTH;
+    constexpr int fixnums_per_block = BLOCK_SIZE / WARPSIZE;//fixnum::SLOT_WIDTH;
 
     // FIXME: nblocks could be too big for a single kernel call to handle
     int nblocks = ceilquo(nelts, fixnums_per_block);
+    //printf("nelts %d fixnums_per_block %d nblocks %d SLOT_WIDTH %d\n", nelts, fixnums_per_block, nblocks,fixnum::SLOT_WIDTH);
 
     // nblocks > 0 iff nelts > 0
     if (nblocks > 0) {

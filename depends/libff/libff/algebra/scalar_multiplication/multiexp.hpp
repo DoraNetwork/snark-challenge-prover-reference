@@ -34,6 +34,7 @@ enum multi_exp_method {
   * [2] = Bernstein, Duif, Lange, Schwabe, and Yang, "High-speed high-security signatures", CHES '11
   */
  multi_exp_method_bos_coster,
+ multi_exp_method_bos_coster_parallel,
  /**
   * A special case of Pippenger's algorithm from Page 15 of
   * Bernstein, Doumen, Lange, Oosterwijk,
@@ -62,6 +63,21 @@ T multi_exp(typename std::vector<T>::const_iterator vec_start,
 
 
 /**
+ * Computes the sum
+ * \sum_i scalar_start[i] * vec_start[i]
+ * using the selected method.
+ * Input is split into the given number of chunks, and, when compiled with
+ * MULTICORE, the chunks are processed in parallel.
+ */
+template<typename T, typename FieldT, multi_exp_method Method>
+T multi_exp_gpu_g1(typename std::vector<T>::const_iterator vec_start,
+            typename std::vector<T>::const_iterator vec_end,
+            typename std::vector<FieldT>::const_iterator scalar_start,
+            typename std::vector<FieldT>::const_iterator scalar_end,
+            const size_t chunks);
+
+
+/**
  * A variant of multi_exp that takes advantage of the method mixed_add (instead
  * of the operator '+').
  * Assumes input is in special form, and includes special pre-processing for
@@ -69,6 +85,20 @@ T multi_exp(typename std::vector<T>::const_iterator vec_start,
  */
 template<typename T, typename FieldT, multi_exp_method Method>
 T multi_exp_with_mixed_addition(typename std::vector<T>::const_iterator vec_start,
+                                typename std::vector<T>::const_iterator vec_end,
+                                typename std::vector<FieldT>::const_iterator scalar_start,
+                                typename std::vector<FieldT>::const_iterator scalar_end,
+                                const size_t chunks);
+
+
+/**
+ * A variant of multi_exp that takes advantage of the method mixed_add (instead
+ * of the operator '+').
+ * Assumes input is in special form, and includes special pre-processing for
+ * scalars equal to 0 or 1.
+ */
+template<typename T, typename FieldT, multi_exp_method Method>
+T multi_exp_with_mixed_addition_gpu(typename std::vector<T>::const_iterator vec_start,
                                 typename std::vector<T>::const_iterator vec_end,
                                 typename std::vector<FieldT>::const_iterator scalar_start,
                                 typename std::vector<FieldT>::const_iterator scalar_end,
