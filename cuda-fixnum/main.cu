@@ -16,7 +16,6 @@
 using namespace std;
 using namespace cuFIXNUM;
 using namespace MNT_G;
-#define BLOCK_SIZE (128)  // threads in one block
 int BLOCK_NUM = 4096;
 #define MNT_SIZE (96)
 #define PARALLEL_SIGMA
@@ -63,44 +62,6 @@ struct mnt4g1_pq_plus {
 
         modnum m(*((fixnum *)modulus_data + threadIdx.x % 32));
         mnt4g1::pq_plus(m, x1, y1, z1, x2, y2, z2, x3, y3, z3);
-  }
-};
-
-template< typename fixnum >
-struct mnt4g1_pq_plus_two {
-    __device__ void operator()(uint32_t *pindex, uint32_t *qindex, uint32_t *x, uint32_t *y, uint32_t *z) {
-        typedef mnt4_g1<fixnum> mnt4g1;
-        typedef modnum_monty_cios<fixnum> modnum;
-        __shared__ uint8_t modulus_data[MNT_SIZE];
-        if (threadIdx.x < 128) {
-            auto index = threadIdx.x / WARP_SIZE * WARP_DATA_WIDTH + threadIdx.x % WARP_SIZE;
-            modulus_data[index] = mnt4_modulus_d[index];
-        }
-
-        __syncthreads();
-
-        modnum m(*((fixnum *)modulus_data + threadIdx.x % 32));
-        fixnum x1, y1, z1, x2, y2, z2, x3, y3, z3;
-        // 128 is thread size in block
-        int indexPQ = blockIdx.x * (BLOCK_SIZE/32) + threadIdx.x / 32;
-        //printf("indexPQ %d\n", indexPQ);
-        uint32_t pindexV = pindex[indexPQ] * 24;
-        uint32_t qindexV = qindex[indexPQ] * 24;
-        int indexV  = threadIdx.x % 32;
-        //printf("pindexV %d qindexV %d indexV %d\n", pindexV, qindexV, indexV);
-        x1 = (fixnum)x[pindexV + indexV];
-        y1 = (fixnum)y[pindexV + indexV];
-        z1 = (fixnum)z[pindexV + indexV];
-        x2 = (fixnum)x[qindexV + indexV];
-        y2 = (fixnum)y[qindexV + indexV];
-        z2 = (fixnum)z[qindexV + indexV];
-    
-        mnt4g1::pq_plus(m, x1, y1, z1, x2, y2, z2, x3, y3, z3);
-#if 1
-        x[pindexV + indexV] = fixnum::get(x3, indexV);
-        y[pindexV + indexV] = fixnum::get(y3, indexV);
-        z[pindexV + indexV] = fixnum::get(z3, indexV);
-#endif
   }
 };
 
@@ -382,127 +343,6 @@ struct mnt6g2_calc_np {
   }
 };
 
-int mnt4_g1_pq_plus_ext_adv(int n, uint8_t** x1, uint8_t** y1, uint8_t** z1,
-                            uint8_t** x2, uint8_t** y2, uint8_t** z2, uint8_t* dbg) {
-    typedef warp_fixnum<96, u32_fixnum> fixnum;
-    typedef fixnum_array<fixnum> fixnum_array;
-    fixnum_array *x1in, *y1in, *z1in, *x2in, *y2in, *z2in;
-    fixnum_array *rx3, *ry3, *rz3;
-    int fn_bytes = 96;
-    int step_bytes = n * fn_bytes;
-
-    x1in = fixnum_array::create(n);
-    y1in = fixnum_array::create(n);
-    z1in = fixnum_array::create(n);
-    x2in = fixnum_array::create(n);
-    y2in = fixnum_array::create(n);
-    z2in = fixnum_array::create(n);
-
-    for (int i = 0; i < n; i++) {
-        x1in->set(i, x1[i], fn_bytes);
-        y1in->set(i, y1[i], fn_bytes);
-        z1in->set(i, z1[i], fn_bytes);
-        x2in->set(i, x2[i], fn_bytes);
-        y2in->set(i, y2[i], fn_bytes);
-        z2in->set(i, z2[i], fn_bytes);
-    }
-
-    rx3 = fixnum_array::create(n);
-    ry3 = fixnum_array::create(n);
-    rz3 = fixnum_array::create(n);
-    fixnum_array::template map<mnt4g1_pq_plus>(x1in, y1in, z1in, x2in, y2in, z2in, rx3, ry3, rz3);
-
-    for (int i = 0; i < n; i++) {
-        rx3->retrieve_into(x1[i], fn_bytes, i);
-        ry3->retrieve_into(y1[i], fn_bytes, i);
-        rz3->retrieve_into(z1[i], fn_bytes, i);
-    }
-
-    int size = n;
-
-    if (dbg != nullptr) {
-        uint8_t* x3 = dbg;
-        uint8_t* y3 = dbg+step_bytes;
-        uint8_t* z3 = y3+step_bytes;
-
-        rx3->retrieve_all(x3, step_bytes, &size);
-        ry3->retrieve_all(y3, step_bytes, &size);
-        rz3->retrieve_all(z3, step_bytes, &size);
-    }
-
-    delete x1in;
-    delete y1in;
-    delete z1in;
-    delete x2in;
-    delete y2in;
-    delete z2in;
-    delete rx3;
-    delete ry3;
-    delete rz3;
-    return 0;
-}
-
-int mnt4_g1_pq_plus_two(int n, uint32_t* pindex, uint32_t* qindex, uint32_t* x, uint32_t* y, uint32_t* z) {
-    typedef warp_fixnum<96, u32_fixnum> fixnum;
-    typedef fixnum_array<fixnum> fixnum_array;
-    uint32_t *dpindex, *dqindex, *dx, *dy, *dz;
-    uint32_t index_size = n * sizeof(uint32_t);
-    uint32_t xyz_size = 24 * 2 * n * sizeof(uint32_t);
-
-    cudaMalloc((void **)&dpindex, index_size);
-    cudaMalloc((void **)&dqindex, index_size);
-    cudaMalloc((void **)&dx, xyz_size);
-    cudaMalloc((void **)&dy, xyz_size);
-    cudaMalloc((void **)&dz, xyz_size);
-    cudaMemcpy(dpindex, pindex, index_size, cudaMemcpyHostToDevice);
-    cudaMemcpy(dqindex, qindex, index_size, cudaMemcpyHostToDevice);
-    cudaMemcpy(dx, x, xyz_size, cudaMemcpyHostToDevice);
-    cudaMemcpy(dy, y, xyz_size, cudaMemcpyHostToDevice);
-    cudaMemcpy(dz, z, xyz_size, cudaMemcpyHostToDevice);
-    
-#if 0
-    printf("input is:\n");
-    for (int i = 0; i < 24*2*n; i++) {
-       printf("%02x", x[i]); 
-    }
-    printf("\n");
-    for (int i = 0; i < 24*2*n; i++) {
-       printf("%02x", y[i]); 
-    }
-    printf("\n");
-    for (int i = 0; i < 24*2*n; i++) {
-       printf("%02x", z[i]); 
-    }
-    printf("\n");
-#endif
-    fixnum_array::template map2<mnt4g1_pq_plus_two>(n, BLOCK_SIZE, dpindex, dqindex, dx, dy, dz);
-    cudaMemcpy(x, dx, xyz_size, cudaMemcpyDeviceToHost);
-    cudaMemcpy(y, dy, xyz_size, cudaMemcpyDeviceToHost);
-    cudaMemcpy(z, dz, xyz_size, cudaMemcpyDeviceToHost);
-#if 0
-    printf("output is:\n");
-    for (int i = 0; i < 24*2*n; i++) {
-       printf("%02x", x[i]); 
-    }
-    printf("\n");
-    for (int i = 0; i < 24*2*n; i++) {
-       printf("%02x", y[i]); 
-    }
-    printf("\n");
-    for (int i = 0; i < 24*2*n; i++) {
-       printf("%02x", z[i]); 
-    }
-    printf("\n");
-
-#endif
-    cudaFree(dpindex);
-    cudaFree(dqindex);
-    cudaFree(dx);
-    cudaFree(dy);
-    cudaFree(dz);
-    
-    return 0;
-}
 
 int mnt4_g1_pq_plus(int n, uint8_t* x1, uint8_t* y1, uint8_t* z1, uint8_t* x2, uint8_t* y2, uint8_t* z2, uint8_t *x3, uint8_t *y3, uint8_t *z3) {
     typedef warp_fixnum<96, u32_fixnum> fixnum;

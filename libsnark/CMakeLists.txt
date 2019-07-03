@@ -213,6 +213,17 @@ target_link_libraries(
   snark
   cuda-fixnum
 )
+add_executable (
+  cuda_prover_piecewise
+  EXCLUDE_FROM_ALL
+
+  cuda_prover_piecewise.cpp
+)
+target_link_libraries(
+  cuda_prover_piecewise
+  snark
+  cuda-fixnum
+)
 
 add_executable(
   profile_routing_algorithms
