@@ -13,7 +13,7 @@ include_directories ("${PROJECT_SOURCE_DIR}/src")
 
 # nvcc flags
 set(CUDA_NVCC_FLAGS
-    -DNDEBUG -ccbin g++ -std=c++11 -Xcompiler -Wall,-Wextra --gpu-architecture=compute_61 --gpu-code=sm_61
+    -DNDEBUG -ccbin g++ -std=c++11 -Xcompiler -Wall,-Wextra --gpu-architecture=compute_37 --gpu-code=sm_37
   )
 
 file(GLOB_RECURSE CURRENT_HEADERS  *.h *.hpp *.cuh)
